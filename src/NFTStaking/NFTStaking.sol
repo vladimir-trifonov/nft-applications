@@ -1,60 +1,136 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.19;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "./IToken.sol";
 
-contract StakingContract is ERC721Holder {
-    using SafeMath for uint256;
+/*
+ * @title NFTStaking
+ * @dev This contract allows users to stake their NFTs to earn ERC20 tokens as rewards.
+ * The contract inherits from IERC721Receiver and ReentrancyGuard.
+ */
+contract NFTStaking is IERC721Receiver, ReentrancyGuard {
+    // ERC20 token and NFT token contracts
+    IToken private erc20Token;
+    IERC721 private erc721Token;
 
-    IERC20 public token;
-    IERC721 public nft;
-    uint256 public rewardRate;
-    uint256 public rewardAmount;
-    uint256 public lastUpdateTime;
-    uint256 public totalStaked;
-    mapping(address => uint256) public stakedBalance;
-    mapping(address => uint256) public lastClaimTime;
+    // Reward amount and interval
+    uint256 public constant REWARD_AMOUNT = 10 * 10 ** 18; // 10 tokens with 18 decimals
+    uint256 public constant REWARD_INTERVAL = 1 days;
 
-    constructor(IERC20 _token, IERC721 _nft, uint256 _rewardRate, uint256 _rewardAmount) {
-        token = _token;
-        nft = _nft;
-        rewardRate = _rewardRate;
-        rewardAmount = _rewardAmount;
+    // Mapping of staked NFTs to their owner address
+    mapping(uint256 => address) private nftStaked;
+    // Mapping of last claimed reward time for each staked NFT
+    mapping(uint256 => uint256) private lastClaimed;
+
+    // Events
+    event Staked(address indexed account, uint256 tokenId);
+    event Unstaked(address indexed account, uint256 tokenId);
+    event RewardClaimed(address indexed account, uint256 amount);
+
+    /**
+     * @dev Constructor function sets the ERC721 and ERC20 token contracts.
+     * @param _erc721Token address of the ERC721 token contract.
+     * @param _erc20Token address of the ERC20 token contract.
+     */
+    constructor(IERC721 _erc721Token, IToken _erc20Token) {
+        erc721Token = _erc721Token;
+        erc20Token = _erc20Token;
     }
 
-    function stake(address to) public {
-        require(nft.getApproved(msg.sender, address(this)) == true, "NFT must be approved");
-        require(stakedBalance[to] == 0, "Address has already staked an NFT");
+    /**
+     * @dev Function that is called when an NFT is staked to the contract.
+     * @param from address of the NFT owner.
+     * @param tokenId ID of the NFT being staked.
+     */
+    function onERC721Received(
+        address,
+        address from,
+        uint256 tokenId,
+        bytes calldata
+    ) external override returns (bytes4) {
+        require(msg.sender == address(erc721Token), "Invalid NFT token");
+        require(nftStaked[tokenId] == address(0), "NFT is staked");
 
-        nft.safeTransferFrom(msg.sender, address(this), nft.tokenOfOwnerByIndex(msg.sender, 0));
-        lastClaimTime[to] = block.timestamp;
-        stakedBalance[to] = rewardAmount;
-        totalStaked = totalStaked.add(rewardAmount);
+        nftStaked[tokenId] = from;
+        lastClaimed[tokenId] = block.timestamp;
+
+        emit Staked(from, tokenId);
+
+        return this.onERC721Received.selector;
     }
 
-    function unstake() public {
-        require(stakedBalance[msg.sender] > 0, "Address has no staked balance");
+    /**
+     * @dev Function that allows the NFT owner to claim their reward.
+     * @param tokenId ID of the staked NFT.
+     */
+    function claimReward(uint256 tokenId) external nonReentrant {
+        require(
+            nftStaked[tokenId] == msg.sender,
+            "Not staked or not original owner"
+        );
 
-        uint256 reward = calculateReward(msg.sender);
-        token.transfer(msg.sender, reward);
-
-        nft.safeTransferFrom(address(this), msg.sender, nft.tokenOfOwnerByIndex(address(this), 0));
-        totalStaked = totalStaked.sub(stakedBalance[msg.sender]);
-        stakedBalance[msg.sender] = 0;
-        lastClaimTime[msg.sender] = 0;
+        _claimReward(tokenId);
     }
 
-    function calculateReward(address user) public view returns (uint256) {
-        uint256 timeElapsed = block.timestamp.sub(lastClaimTime[user]);
-        uint256 stakedAmount = stakedBalance[user];
-        uint256 reward = stakedAmount.mul(rewardRate).mul(timeElapsed).div(1 days);
+    /**
+     * @dev Internal function that handles the claiming of rewards.
+     * @param tokenId ID of the staked NFT.
+     */
+    function _claimReward(uint256 tokenId) private {
+        uint256 timeElapsed = block.timestamp - lastClaimed[tokenId];
 
-        return reward;
+        require(timeElapsed > REWARD_INTERVAL, "Too soon to claim rewards");
+
+        uint256 reward = REWARD_AMOUNT * (timeElapsed /
+            REWARD_INTERVAL);
+        lastClaimed[tokenId] = block.timestamp;
+
+        erc20Token.mint(msg.sender, reward);
+
+        emit RewardClaimed(msg.sender, reward);
     }
 
-    function claim() public {
-        uint256 reward = calculateReward(msg.sender);
-        lastClaimTime[msg.sender] = block
+    /**
+     * @dev Function that allows the NFT owner to unstake
+     * their NFT and claim their reward if it is available.
+     * @param tokenId ID of the staked NFT.
+     */
+    function unstake(uint256 tokenId) external nonReentrant {
+        require(
+            nftStaked[tokenId] == msg.sender,
+            "Not staked or not original owner"
+        );
+
+        // If the reward is available, claim it before unstaking the NFT
+        if (nextClaim(tokenId) == 0) {
+            _claimReward(tokenId);
+        }
+
+        delete nftStaked[tokenId];
+        delete lastClaimed[tokenId];
+
+        // Transfer the NFT back to the owner
+        erc721Token.safeTransferFrom(address(this), msg.sender, tokenId);
+
+        emit Unstaked(msg.sender, tokenId);
+    }
+
+    /**
+     * @dev Function that returns the time remaining until the next reward claim is available.
+     * @param tokenId ID of the staked NFT.
+     * @return The time remaining in seconds until the next reward claim is available.
+     */
+    function nextClaim(uint256 tokenId) public view returns (uint256) {
+        if (lastClaimed[tokenId] == 0) {
+            return 0;
+        }
+        uint256 timeElapsed = block.timestamp - lastClaimed[tokenId];
+        if (timeElapsed >= REWARD_INTERVAL) {
+            return 0;
+        }
+        return REWARD_INTERVAL - timeElapsed;
+    }
+}

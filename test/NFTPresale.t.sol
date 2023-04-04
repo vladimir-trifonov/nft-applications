@@ -3,24 +3,272 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "../src/NFTPresale.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 
+/*
+* @title NFTPresaleTest
+* @dev A test suite for the NFTPresale contract.
+*/
 contract NFTPresaleTest is Test {
-  bytes32 private constant MERKLE_ROOT = bytes32(hex"fcf019a5d0c48e09ca5b7a9d5f5e5d5dd23c2073e3613d98ce056b7d5f2eb276");
-  uint256 private constant PRESALE_PRICE = 500_000;
-  uint256 private constant PRICE = 1_000_000;
+    using Strings for uint256;
 
-  NFTPresale private nftPresale;
+// Test constants
+    bytes32 private constant MERKLE_ROOT =
+        bytes32(
+            hex"f37e01f032bc851f888e3760a4d970e3c7bdd35594484fe0404b23fdf101df04"
+        );
+    uint256 constant MAX_SUPPLY = 1001;
+    uint256 constant METADATA_COUNT = 10;
+    uint256 private presalePrice;
+    uint256 private price;
+    string constant BASE_URI =
+        "https://gateway.pinata.cloud/ipfs/QmcnsDPCkUWCxFknXCgeJwKK9WbfeEa7ukVjEc35fgjf7R/";
 
-  function setUp() public {
-    nftPresale = new NFTPresale(MERKLE_ROOT);
-    presale.mint{value: 1_000_000}();
-  }
+    NFTPresale private presale;
 
-  function testConstructor() public {
-    assertEq(presale.owner(), address(this));
-    assertEq(presale.name(), "Presale Token");
-    assertEq(presale.symbol(), "PTK");
-    assertEq(presale.totalSupply(), 1);
-    assertEq(presale.royaltyInfo(tokenId, 1_000_000), (address(this), 250));
-  }
+    /*
+     * @dev Sets up the test by deploying a new NFTPresale contract instance.
+     */
+    function setUp() public {
+        presale = new NFTPresale(MERKLE_ROOT);
+
+        presalePrice = presale.PRESALE_PRICE();
+        price = presale.PRICE();
+    }
+
+    /*
+     * @dev Tests whether the NFTPresale contract supports IERC2981.
+     */
+    function testSupportsIERC2981() public {
+        // Set up
+        bytes4 interfaceId = type(IERC2981).interfaceId;
+
+        // Verify the effects
+        assertTrue(presale.supportsInterface(interfaceId));
+    }
+
+    /*
+     * @dev Tests whether the NFTPresale contract does not support an invalid interface.
+     */
+    function testSupportsInvalidInterface() public {
+        // Set up
+        bytes4 interfaceId = bytes4(keccak256("invalidInterface()"));
+
+        // Verify the effects
+        assertFalse(presale.supportsInterface(interfaceId));
+    }
+
+    /*
+     * @dev Tests the constructor of the NFTPresale contract.
+     */
+    function testConstructor() public {
+        // Verify the effects
+        assertEq(presale.owner(), address(this));
+        assertEq(presale.name(), "Presale Token");
+        assertEq(presale.symbol(), "PTK");
+        assertEq(presale.totalSupply(), 0);
+    }
+
+    /*
+     * @dev Tests the transfer of ownership in the NFTPresale contract.
+     */
+    function testTransferOwnership() public {
+        // Set up
+        address newOwner = vm.addr(1);
+        presale.transferOwnership(newOwner);
+        assertEq(presale.owner(), address(this));
+        hoax(newOwner);
+
+        // Call the function
+        presale.acceptOwnership();
+
+        // Verify the effects
+        assertEq(presale.owner(), newOwner);
+    }
+
+    /*
+     * @dev Tests the revert of renouncing ownership in the NFTPresale contract.
+     */
+    function testRevertRenounceOwnership() public {
+        // Expect revert
+        vm.expectRevert("Cannot renounce ownership");
+
+        // Call the function
+        presale.renounceOwnership();
+    }
+
+    /*
+     * @dev Tests the minting of tokens in the NFTPresale contract.
+     */
+    function testMint() public {
+        // Set up
+        address buyer = vm.addr(1);
+        vm.deal(buyer, price);
+        vm.broadcast(buyer);
+
+        // Call the function
+        presale.mint{value: price}();
+
+        // Verify the effects
+        assertEq(presale.totalSupply(), 1);
+        assertEq(presale.balanceOf(buyer), 1);
+        assertEq(presale.ownerOf(1), buyer);
+    }
+
+    /*
+     * @dev Tests the revert of minting when the sale has already ended.
+     */
+    function testRevert_SaleEnded() public {
+        // Set up
+        address buyer = vm.addr(1);
+        for (uint256 i = 1; i < MAX_SUPPLY; i++) {
+            vm.deal(buyer, price);
+            vm.broadcast(buyer);
+            presale.mint{value: price}();
+        }
+
+        // Expect revert
+        vm.expectRevert("Sale has already ended");
+
+        // Call the function
+        vm.deal(buyer, price);
+        vm.broadcast(buyer);
+        presale.mint{value: price}();
+    }
+
+    /*
+     * @dev Tests the revert of presale minting with an invalid Merkle proof.
+     */
+    function testRevert_PresaleInvalidMerkleProof() public {
+        // Set up
+        address buyer = vm.addr(1);
+        bytes32[] memory invalidProof = new bytes32[](1);
+        invalidProof[0] = bytes32(
+            hex"0000000000000000000000000000000000000000000000000000000000000000"
+        );
+
+        // Expect revert
+        vm.expectRevert("Invalid merkle proof");
+
+        // Call the function
+        hoax(buyer);
+        presale.presale{value: presalePrice}(invalidProof, 0);
+    }
+
+    /*
+     * @dev Tests the successful presale minting.
+     */
+    function testPresale() public {
+        // Set up
+        address buyer = address(0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB);
+        bytes32[] memory proof = new bytes32[](3);
+        proof[0] = bytes32(
+            hex"bd555f4c1d283441246e3b8081e994217b8109898aa1ac2c652b4b5e1d745d4d"
+        );
+        proof[1] = bytes32(
+            hex"2a7f7a3b505f2b03fd3189d07548a1143d736cb5d472b016a9f0b5c95d0a1fbf"
+        );
+        proof[2] = bytes32(
+            hex"e94c52de115f43e549267af35e5bf6a7cb0f9d35b3a7eb3cad31b25cd19065af"
+        );
+
+        // Call the function
+        vm.deal(buyer, presalePrice);
+        vm.broadcast(buyer);
+        presale.presale{value: presalePrice}(proof, 3);
+
+        // Verify the effects
+        assertEq(presale.totalSupply(), 1);
+        assertEq(presale.balanceOf(buyer), 1);
+        assertEq(presale.ownerOf(1), buyer);
+    }
+
+    /*
+     * @dev Tests the revert of presale minting with an invalid ticket.
+     */
+    function testRevert_PresaleInvalidTicket() public {
+        // Set up
+        address buyer = address(0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB);
+        bytes32[] memory proof = new bytes32[](3);
+        proof[0] = bytes32(
+            hex"bd555f4c1d283441246e3b8081e994217b8109898aa1ac2c652b4b5e1d745d4d"
+        );
+        proof[1] = bytes32(
+            hex"2a7f7a3b505f2b03fd3189d07548a1143d736cb5d472b016a9f0b5c95d0a1fbf"
+        );
+        proof[2] = bytes32(
+            hex"e94c52de115f43e549267af35e5bf6a7cb0f9d35b3a7eb3cad31b25cd19065af"
+        );
+
+        // Expect revert
+        vm.expectRevert("Invalid merkle proof");
+
+        // Call the function
+        vm.deal(buyer, presalePrice);
+        vm.broadcast(buyer);
+        presale.presale{value: presalePrice}(proof, 2);
+    }
+
+    /*
+     * @dev Tests the tokenURI method of the NFTPresale contract.
+     */
+    function testTokenURI() public {
+        // Set up
+        address buyer = vm.addr(1);
+        vm.deal(buyer, price);
+        vm.broadcast(buyer);
+        presale.mint{value: price}();
+        uint256 tokenId = presale.totalSupply();
+
+        string memory expectedUri = string(
+            abi.encodePacked(
+                BASE_URI,
+                (tokenId % METADATA_COUNT).toString(),
+                ".json"
+            )
+        );
+
+        // Verify the effects
+        assertEq(presale.tokenURI(tokenId), expectedUri);
+    }
+
+    /*
+     * @dev Tests the royaltyInfo method of the NFTPresale contract.
+     */
+    function testRoyaltyInfo() public {
+        // Set up
+        address buyer = vm.addr(1);
+        vm.deal(buyer, price);
+        vm.broadcast(buyer);
+        presale.mint{value: price}();
+
+        // Call the function
+        (address owner, uint256 royaltyAmount) = presale.royaltyInfo(1, price);
+
+        // Verify the effects
+        assertEq(owner, buyer);
+        assertEq(royaltyAmount, 25000);
+    }
+
+    /*
+     * @dev Tests the withdraw method of the NFTPresale contract.
+     */
+    function testWithdraw() public {
+        // Set up
+        address receiverFunds = vm.addr(2);
+        uint256 receiverBalance = address(receiverFunds).balance;
+        uint256 contractBalance = address(this).balance;
+        address buyer = vm.addr(1);
+        vm.deal(buyer, price);
+        vm.broadcast(buyer);
+        presale.mint{value: price}();
+
+        // Call the function
+        presale.withdraw(receiverFunds);
+
+        // Verify the effects
+        assertEq(address(receiverFunds).balance, receiverBalance + price);
+        assertEq(address(this).balance, contractBalance);
+    }
 }
