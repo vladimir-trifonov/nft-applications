@@ -38,7 +38,7 @@ contract NFTPresale is ERC721, IERC2981, Ownable {
     // A bitmap of presale tickets that have already been minted
     BitMaps.BitMap private tickets;
     // The address of the new owner of the contract
-    address private newOwner;
+    address private pendingOwner;
     // A mapping of token IDs to their creators
     mapping(uint256 => address) private creators;
 
@@ -68,11 +68,11 @@ contract NFTPresale is ERC721, IERC2981, Ownable {
 
     /**
      * @dev Transfer ownership of the contract to a new owner
-     * @param _newOwner The address of the new owner
+     * @param _pendingOwner The address of the new owner
      */
-    function transferOwnership(address _newOwner) public override onlyOwner {
-        require(_newOwner != address(0), "New owner address cannot be zero");
-        newOwner = _newOwner;
+    function transferOwnership(address _pendingOwner) public override onlyOwner {
+        require(_pendingOwner != address(0), "New owner address cannot be zero");
+        pendingOwner = _pendingOwner;
     }
 
     /**
@@ -80,11 +80,11 @@ contract NFTPresale is ERC721, IERC2981, Ownable {
      */
     function acceptOwnership() external {
         require(
-            msg.sender == newOwner,
+            msg.sender == pendingOwner,
             "Only the new owner can accept ownership"
         );
-        _transferOwnership(newOwner);
-        newOwner = address(0);
+        _transferOwnership(pendingOwner);
+        pendingOwner = address(0);
     }
 
     /**
@@ -127,7 +127,7 @@ contract NFTPresale is ERC721, IERC2981, Ownable {
      */
     function _mint(address to, uint256 tokenId) internal override {
         require(tokenId < MAX_SUPPLY, "Sale has already ended");
-        require(tx.origin == msg.sender, "Contracts not allowed");
+        // require(tx.origin == msg.sender, "Contracts not allowed");
 
         creators[tokenId] = to;
 
@@ -180,7 +180,7 @@ contract NFTPresale is ERC721, IERC2981, Ownable {
      */
     function _baseURI() internal pure override returns (string memory) {
         return
-            "https://gateway.pinata.cloud/ipfs/QmcnsDPCkUWCxFknXCgeJwKK9WbfeEa7ukVjEc35fgjf7R/";
+            "ipfs://QmcnsDPCkUWCxFknXCgeJwKK9WbfeEa7ukVjEc35fgjf7R/";
     }
 
     /**

@@ -142,6 +142,34 @@ contract NFTStakingTest is Test {
     }
 
     /**
+     * @dev This function tests that a user can unstake their NFT from the contract, and the claim amount is transferred to the owner.
+     */
+    function testUnstakeWithAutoClaim() public {
+        // Set up
+        uint256 rewardAmount = staking.REWARD_AMOUNT();
+        uint256 rewardInterval = staking.REWARD_INTERVAL();
+        address buyer = vm.addr(1);
+        uint256 tokenId = 1;
+        vm.broadcast(buyer);
+        nft.mint{value: 0}();
+        vm.prank(buyer);
+        vm.warp(0);
+        nft.safeTransferFrom(buyer, address(staking), tokenId);
+
+        // Call the function
+        vm.prank(buyer);
+        skip((2 * rewardInterval) + 1);
+        staking.unstake(1);
+
+        // Verify the effects
+        assertEq(erc20.balanceOf(buyer), 2 * rewardAmount);
+        assertEq(staking.nextClaim(tokenId), 0);
+        assertEq(nft.balanceOf(buyer), 1);
+        assertEq(nft.balanceOf(address(staking)), 0);
+        assertEq(nft.ownerOf(1), buyer);
+    }
+
+    /**
      * @dev This function tests that a user cannot claim rewards for an NFT that has already been unstaked.
      */
     function testRevert_ClaimUnstaked() public {
@@ -186,5 +214,97 @@ contract NFTStakingTest is Test {
         // Verify the effects
         assertEq(erc20.balanceOf(buyer), 2 * rewardAmount);
         assertEq(staking.nextClaim(tokenId), rewardInterval);
+    }
+
+    /**
+     * @dev Tests that the `onERC721Received` function reverts when receiving an invalid token.
+     */
+    function testRevert_OnERC721ReceivedInvalidToken() public {
+        // Set up
+        address sender = address(nft);
+        address from = vm.addr(1);
+
+        // Expect revert
+        vm.expectRevert("Invalid NFT token");
+
+        // Call the function
+        staking.onERC721Received(sender, from, 0, "");
+    }
+
+    /**
+     * @dev Tests that the `onERC721Received` function reverts when the NFT is already staked.
+     */
+    function testRevert_OnERC721ReceivedNftIsStaked() public {
+        // Set up
+        address sender = address(nft);
+        address buyer = vm.addr(1);
+        vm.broadcast(buyer);
+        nft.mint{value: 0}();
+        vm.prank(buyer);
+        nft.safeTransferFrom(buyer, address(staking), 1);
+
+        // Expect revert
+        vm.expectRevert("NFT is staked");
+
+        // Call the function
+        vm.prank(sender);
+        staking.onERC721Received(sender, buyer, 1, "");
+    }
+
+    /**
+     * @dev Tests that the `unstake` function reverts when the caller is not the owner of the NFT.
+     */
+    function testRevert_UnstakeNotAnOwner() public {
+        // Set up
+        address buyer = vm.addr(1);
+        vm.broadcast(buyer);
+        nft.mint{value: 0}();
+        vm.prank(buyer);
+        nft.safeTransferFrom(buyer, address(staking), 1);
+
+        // Expect revert
+        vm.expectRevert("Not staked or not original owner");
+
+        // Call the function
+        vm.prank(vm.addr(2));
+        staking.unstake(1);
+    }
+
+    /**
+     * @dev Tests that the `unstake` function reverts when the NFT has not been transferred.
+     */
+    function testRevert_UnstakeNotTransferred() public {
+        // Set up
+        address sender = address(nft);
+        address buyer = vm.addr(1);
+        vm.broadcast(buyer);
+        nft.mint{value: 0}();
+
+        // Expect revert
+        vm.expectRevert("Not transferred");
+
+        // Call the function
+        vm.prank(sender);
+        staking.onERC721Received(sender, buyer, 1, "");
+    }
+
+    /**
+     * @dev Tests that the `nextClaim` function returns 0 when the next claim timestamp is met.
+     */
+    function testClaimNextClaim() public {
+        // Set up
+        uint256 rewardInterval = staking.REWARD_INTERVAL();
+        address buyer = vm.addr(1);
+        uint256 tokenId = 1;
+        vm.broadcast(buyer);
+        nft.mint{value: 0}();
+        vm.prank(buyer);
+        vm.warp(rewardInterval);
+        nft.safeTransferFrom(buyer, address(staking), tokenId);
+        skip(rewardInterval);
+
+        // Verify the effects
+        assertEq(erc20.balanceOf(buyer), 0);
+        assertEq(staking.nextClaim(tokenId), 0);
     }
 }

@@ -13,8 +13,8 @@ import "./IToken.sol";
  */
 contract NFTStaking is IERC721Receiver, ReentrancyGuard {
     // ERC20 token and NFT token contracts
-    IToken private erc20Token;
-    IERC721 private erc721Token;
+    IToken private immutable erc20Token;
+    IERC721 private immutable erc721Token;
 
     // Reward amount and interval
     uint256 public constant REWARD_AMOUNT = 10 * 10 ** 18; // 10 tokens with 18 decimals
@@ -53,6 +53,7 @@ contract NFTStaking is IERC721Receiver, ReentrancyGuard {
     ) external override returns (bytes4) {
         require(msg.sender == address(erc721Token), "Invalid NFT token");
         require(nftStaked[tokenId] == address(0), "NFT is staked");
+        require(erc721Token.ownerOf(tokenId) == address(this), "Not transferred");
 
         nftStaked[tokenId] = from;
         lastClaimed[tokenId] = block.timestamp;

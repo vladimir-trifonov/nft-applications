@@ -55,9 +55,13 @@ contract NFTStats {
             return false;
         }
 
-        for (uint256 i = 3; i * i <= number; i += 2) {
+        for (uint256 i = 3; i * i <= number;) {
             if (number % i == 0) {
                 return false;
+            }
+
+            unchecked {
+                i += 2;
             }
         }
 
