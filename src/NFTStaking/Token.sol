@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity 0.8.15;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -11,8 +11,6 @@ import "./IToken.sol";
  * The owner of the contract has the ability to mint new tokens
  */
 contract Token is ERC20, Ownable, IToken {
-    address private _owner;
-
     /*
      * @dev Constructs a new Token contract with a specified name and symbol
      * @param name The name of the token

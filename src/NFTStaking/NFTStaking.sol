@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity 0.8.15;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
@@ -72,6 +72,7 @@ contract NFTStaking is IERC721Receiver, ReentrancyGuard {
             nftStaked[tokenId] == msg.sender,
             "Not staked or not original owner"
         );
+        require(nextClaim(tokenId) == 0, "Too soon to claim rewards");
 
         _claimReward(tokenId);
     }
@@ -82,8 +83,6 @@ contract NFTStaking is IERC721Receiver, ReentrancyGuard {
      */
     function _claimReward(uint256 tokenId) private {
         uint256 timeElapsed = block.timestamp - lastClaimed[tokenId];
-
-        require(timeElapsed > REWARD_INTERVAL, "Too soon to claim rewards");
 
         uint256 reward = REWARD_AMOUNT * (timeElapsed /
             REWARD_INTERVAL);
@@ -110,8 +109,8 @@ contract NFTStaking is IERC721Receiver, ReentrancyGuard {
             _claimReward(tokenId);
         }
 
-        delete nftStaked[tokenId];
-        delete lastClaimed[tokenId];
+        nftStaked[tokenId] = address(0);
+        lastClaimed[tokenId] = 0;
 
         // Transfer the NFT back to the owner
         erc721Token.safeTransferFrom(address(this), msg.sender, tokenId);
@@ -122,16 +121,20 @@ contract NFTStaking is IERC721Receiver, ReentrancyGuard {
     /**
      * @dev Function that returns the time remaining until the next reward claim is available.
      * @param tokenId ID of the staked NFT.
-     * @return The time remaining in seconds until the next reward claim is available.
+     * @return The time remaining in seconds until the next reward claim is available. Returns 0 if the reward is available. 
+     * Return max uint256 if the NFT is not staked.
      */
     function nextClaim(uint256 tokenId) public view returns (uint256) {
         if (lastClaimed[tokenId] == 0) {
-            return 0;
+            return type(uint256).max;
         }
+
         uint256 timeElapsed = block.timestamp - lastClaimed[tokenId];
-        if (timeElapsed >= REWARD_INTERVAL) {
+
+        if (timeElapsed > REWARD_INTERVAL) {
             return 0;
         }
+
         return REWARD_INTERVAL - timeElapsed;
     }
 }

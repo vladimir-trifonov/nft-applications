@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity 0.8.15;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 
 /*
  * @title NFT
  * @dev This contract is an ERC721 token contract that allows users to mint new tokens.
  */
 
-contract NFT is ERC721 {
+contract NFT is ERC721, Ownable {
     uint256 private nextTokenId = 1;
 
     /**
@@ -25,5 +27,12 @@ contract NFT is ERC721 {
         unchecked {
             nextTokenId++;
         }
+    }
+
+    /**
+     * @dev Function that withdraws the ether from the contract.
+     */
+    function withdraw() external onlyOwner {
+        Address.sendValue(payable(msg.sender), address(this).balance);
     }
 }

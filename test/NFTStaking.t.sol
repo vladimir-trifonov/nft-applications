@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity 0.8.15;
 
 import "forge-std/Test.sol";
 import "../src/NFTStaking/NFTStaking.sol";
 import "../src/NFTStaking/Token.sol";
 import "../src/NFTStaking/NFT.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 /*
  * @title NFTStakingTest
@@ -153,7 +152,7 @@ contract NFTStakingTest is Test {
         vm.broadcast(buyer);
         nft.mint{value: 0}();
         vm.prank(buyer);
-        vm.warp(0);
+        vm.warp(1);
         nft.safeTransferFrom(buyer, address(staking), tokenId);
 
         // Call the function
@@ -163,7 +162,7 @@ contract NFTStakingTest is Test {
 
         // Verify the effects
         assertEq(erc20.balanceOf(buyer), 2 * rewardAmount);
-        assertEq(staking.nextClaim(tokenId), 0);
+        assertEq(staking.nextClaim(tokenId), type(uint256).max);
         assertEq(nft.balanceOf(buyer), 1);
         assertEq(nft.balanceOf(address(staking)), 0);
         assertEq(nft.ownerOf(1), buyer);
@@ -203,7 +202,7 @@ contract NFTStakingTest is Test {
         vm.broadcast(buyer);
         nft.mint{value: 0}();
         vm.prank(buyer);
-        vm.warp(0);
+        vm.warp(1);
         nft.safeTransferFrom(buyer, address(staking), tokenId);
 
         // Call the function
@@ -228,7 +227,10 @@ contract NFTStakingTest is Test {
         vm.expectRevert("Invalid NFT token");
 
         // Call the function
-        staking.onERC721Received(sender, from, 0, "");
+        bytes4 ret = staking.onERC721Received(sender, from, 0, "");
+
+        // Verify the effects
+        assertEq(ret, 0);
     }
 
     /**
@@ -248,7 +250,10 @@ contract NFTStakingTest is Test {
 
         // Call the function
         vm.prank(sender);
-        staking.onERC721Received(sender, buyer, 1, "");
+        bytes4 ret = staking.onERC721Received(sender, buyer, 1, "");
+
+        // Verify the effects
+        assertEq(ret, 0);
     }
 
     /**
@@ -285,7 +290,10 @@ contract NFTStakingTest is Test {
 
         // Call the function
         vm.prank(sender);
-        staking.onERC721Received(sender, buyer, 1, "");
+        bytes4 ret = staking.onERC721Received(sender, buyer, 1, "");
+
+        // Verify the effects
+        assertEq(ret, 0);
     }
 
     /**
