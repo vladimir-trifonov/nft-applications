@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./IToken.sol";
 
 /*
@@ -20,6 +21,19 @@ contract Token is ERC20, Ownable, IToken {
         string memory name,
         string memory symbol
     ) ERC20(name, symbol) Ownable() {}
+
+     /**
+     * @dev Checks if a contract implements the IToken or IERC20 interface.
+     * @param interfaceId The interface ID being checked.
+     * @return A boolean indicating if the contract implements the IToken and the IERC20 interface.
+     */
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public pure returns (bool) {
+        return
+            interfaceId == type(IToken).interfaceId ||
+            interfaceId == type(IERC20).interfaceId;
+    }
 
     /*
      * @dev Mints a specified amount of tokens and transfers them to the specified recipient address

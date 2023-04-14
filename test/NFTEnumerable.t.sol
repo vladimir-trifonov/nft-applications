@@ -21,6 +21,14 @@ contract NFTEnumerableTest is Test {
         stats = new NFTStats(enumerable);
     }
 
+    /*
+     * @dev Tests the constructor of the NFTEnumerable contract.
+     */
+    function testConstructor() public {
+        // Verify the effects
+        assertEq(enumerable.owner(), address(this));
+    }
+
     /**
      * @dev This function test the number of prime numbers among the tokens owned by an address in an ERC721Enumerable contract.
      */
@@ -37,6 +45,7 @@ contract NFTEnumerableTest is Test {
         
         // Verify the effects
         assertEq(stats.countPrimes(buyer), 168);
+        assertEq(enumerable.balanceOf(buyer), 1000);
     }
 
     /**
@@ -56,14 +65,38 @@ contract NFTEnumerableTest is Test {
         
         // Verify the effects
         assertEq(address(receiver).balance, 0.1 ether);
+    } 
+    
+    /**
+     * @dev This function test contract withdraw method reverts when the caller is not the owner.
+     */
+    function testRevert_WithdrawNotAnOwner() public {
+        // Set up
+        address buyer = vm.addr(1);
+        uint256 balance = address(buyer).balance;
+        vm.deal(buyer, 0.1 ether);
+        vm.prank(buyer);
+        enumerable.mint{value: 0.1 ether}();
+
+        // Expect revert
+        vm.expectRevert("Ownable: caller is not the owner");
+
+        // Call the function
+        vm.prank(buyer);
+        enumerable.withdraw(vm.addr(2));
+
+        // Verify the effects
+        assertEq(address(buyer).balance, balance);
+        assertEq(enumerable.owner(), address(this));
     }
 
     /**
-     * @dev This function test nft contract withdraw method reverts when the caller zero address.
+     * @dev This function test contract withdraw method reverts when the caller zero address.
      */
-    function testRevert_NFTWithdrawZeroAddress() public {
+    function testRevert_WithdrawZeroAddress() public {
         // Set up
         address buyer = vm.addr(1);
+        uint256 balance = address(this).balance;
         vm.deal(buyer, 0.1 ether);
         vm.prank(buyer);
         enumerable.mint{value: 0.1 ether}();
@@ -74,5 +107,8 @@ contract NFTEnumerableTest is Test {
         // Call the function
         vm.prank(address(this));
         enumerable.withdraw(address(0));
+
+        // Verify the effects
+        assertEq(address(this).balance, balance);
     }
 }

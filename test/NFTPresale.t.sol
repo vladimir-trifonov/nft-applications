@@ -88,14 +88,47 @@ contract NFTPresaleTest is Test {
     }
 
     /*
+     * @dev Tests the transfer of ownership in the NFTPresale contract when the caller is not the owner.
+     */
+    function testRevert_TransferOwnershipNotAnOwner() public {
+        // Set up
+        address newOwner = vm.addr(1);
+
+        // Expect revert
+        vm.expectRevert("Ownable: caller is not the owner");
+
+        // Call the function
+        vm.prank(newOwner);
+        presale.transferOwnership(newOwner);
+
+        // Verify the effects
+        assertEq(presale.owner(), address(this));
+    }
+
+    /*
      * @dev Tests the revert of renouncing ownership in the NFTPresale contract.
      */
-    function testRevertRenounceOwnership() public {
+    function testRevert_RenounceOwnership() public {
         // Expect revert
         vm.expectRevert("Cannot renounce ownership");
 
         // Call the function
         presale.renounceOwnership();
+    } 
+    
+    /*
+     * @dev Tests the renounce of ownership in the NFTPresale contract when the caller is not the owner.
+     */
+    function testRevert_RenounceOwnershipNotAnOwner() public {
+        // Expect revert
+        vm.expectRevert("Ownable: caller is not the owner");
+
+        // Call the function
+        vm.prank(vm.addr(1));
+        presale.renounceOwnership();
+
+        // Verify the effects
+        assertEq(presale.owner(), address(this));
     }
 
     /*
@@ -269,6 +302,31 @@ contract NFTPresaleTest is Test {
 
         // Verify the effects
         assertEq(address(receiverFunds).balance, receiverBalance + price);
+        assertEq(address(this).balance, contractBalance);
+    }
+
+    /**
+     * @dev This function test NFTPresale contract withdraw method reverts when the caller is not the owner.
+     */
+    function testRevert_WithdrawNotAnOwner() public {
+        // Set up
+        address receiverFunds = vm.addr(2);
+        uint256 receiverBalance = address(receiverFunds).balance;
+        uint256 contractBalance = address(this).balance;
+        address buyer = vm.addr(1);
+        vm.deal(buyer, price);
+        vm.broadcast(buyer);
+        presale.mint{value: price}();
+
+        // Expect revert
+        vm.expectRevert("Ownable: caller is not the owner");
+
+        // Call the function
+        vm.prank(receiverFunds);
+        presale.withdraw(receiverFunds);
+
+        // Verify the effects
+        assertEq(address(receiverFunds).balance, receiverBalance);
         assertEq(address(this).balance, contractBalance);
     }
 

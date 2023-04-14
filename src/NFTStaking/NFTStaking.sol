@@ -84,6 +84,11 @@ contract NFTStaking is IERC721Receiver, ReentrancyGuard {
     function _claimReward(uint256 tokenId) private {
         uint256 timeElapsed = block.timestamp - lastClaimed[tokenId];
 
+        require(
+            timeElapsed < block.timestamp,
+            "Incorrect time elapsed"
+        );
+
         uint256 reward = REWARD_AMOUNT * (timeElapsed /
             REWARD_INTERVAL);
         lastClaimed[tokenId] = block.timestamp;
@@ -131,7 +136,7 @@ contract NFTStaking is IERC721Receiver, ReentrancyGuard {
 
         uint256 timeElapsed = block.timestamp - lastClaimed[tokenId];
 
-        if (timeElapsed > REWARD_INTERVAL) {
+        if (timeElapsed >= REWARD_INTERVAL) {
             return 0;
         }
 
