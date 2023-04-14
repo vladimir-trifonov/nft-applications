@@ -31,7 +31,8 @@ contract NFTEnumerable is ERC721Enumerable, Ownable {
     /**
      * @dev Function that withdraws the ether from the contract.
      */
-    function withdraw() external onlyOwner {
-        Address.sendValue(payable(msg.sender), address(this).balance);
+    function withdraw(address receiver) external onlyOwner {
+        require(receiver != address(0), "Receiver is zero address");
+        Address.sendValue(payable(receiver), address(this).balance);
     }
 }

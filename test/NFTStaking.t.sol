@@ -315,4 +315,41 @@ contract NFTStakingTest is Test {
         assertEq(erc20.balanceOf(buyer), 0);
         assertEq(staking.nextClaim(tokenId), 0);
     }
+
+    /**
+     * @dev This function test nft contract withdraw method.
+     */
+    function testNFTWithdraw() public {
+        // Set up
+        address buyer = vm.addr(1);
+        address receiver = vm.addr(2);
+        vm.deal(buyer, 0.1 ether);
+
+        // Call the function
+        vm.prank(buyer);
+        nft.mint{value: 0.1 ether}();
+        vm.prank(address(this));
+        nft.withdraw(receiver);
+        
+        // Verify the effects
+        assertEq(address(receiver).balance, 0.1 ether);
+    }
+
+    /**
+     * @dev This function test nft contract withdraw method reverts when the caller zero address.
+     */
+    function testRevert_NFTWithdrawZeroAddress() public {
+        // Set up
+        address buyer = vm.addr(1);
+        vm.deal(buyer, 0.1 ether);
+        vm.prank(buyer);
+        nft.mint{value: 0.1 ether}();
+
+        // Expect revert
+        vm.expectRevert("Receiver is zero address");
+
+        // Call the function
+        vm.prank(address(this));
+        nft.withdraw(address(0));
+    }
 }

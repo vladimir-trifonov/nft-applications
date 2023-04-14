@@ -402,6 +402,9 @@ contract NFTPresaleTest is Test {
         vm.expectRevert("Token does not exist");
 
         // Verify the effects
-        presale.tokenURI(2);
+        string memory ret = presale.tokenURI(2);
+
+        // Verify the effects
+        assertEq(ret, "");
     }
 }
