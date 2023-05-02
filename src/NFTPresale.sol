@@ -70,8 +70,13 @@ contract NFTPresale is ERC721, IERC2981, Ownable {
      * @dev Transfer ownership of the contract to a new owner
      * @param _pendingOwner The address of the new owner
      */
-    function transferOwnership(address _pendingOwner) public override onlyOwner {
-        require(_pendingOwner != address(0), "New owner address cannot be zero");
+    function transferOwnership(
+        address _pendingOwner
+    ) public override onlyOwner {
+        require(
+            _pendingOwner != address(0),
+            "New owner address cannot be zero"
+        );
         pendingOwner = _pendingOwner;
     }
 
@@ -127,7 +132,6 @@ contract NFTPresale is ERC721, IERC2981, Ownable {
      */
     function _mint(address to, uint256 tokenId) internal override {
         require(tokenId < MAX_SUPPLY, "Sale has already ended");
-        // require(tx.origin == msg.sender, "Contracts not allowed");
 
         creators[tokenId] = to;
 
@@ -179,8 +183,7 @@ contract NFTPresale is ERC721, IERC2981, Ownable {
      * @return A The base URI for the token metadata
      */
     function _baseURI() internal pure override returns (string memory) {
-        return
-            "ipfs://QmcnsDPCkUWCxFknXCgeJwKK9WbfeEa7ukVjEc35fgjf7R/";
+        return "ipfs://QmcnsDPCkUWCxFknXCgeJwKK9WbfeEa7ukVjEc35fgjf7R/";
     }
 
     /**
